@@ -1,0 +1,53 @@
+{
+  "extName": {
+    "message": "Selection Fence"
+  },
+  "extShortName": {
+    "message": "SelFence"
+  },
+  "extDescription": {
+    "message": "Keeps drag selections inside the text block where they started, reducing accidental jumps to unrelated page text."
+  },
+  "actionTitle": {
+    "message": "Selection Fence settings"
+  },
+  "popupTitle": {
+    "message": "Selection Fence"
+  },
+  "popupSubtitle": {
+    "message": "Prevents text selections from jumping to unrelated parts of the page."
+  },
+  "modeDifferenceNote": {
+    "message": "Note: the three modes are easiest to compare when selecting multi-line text."
+  },
+  "modeSmart": {
+    "message": "Smart (recommended)"
+  },
+  "modeSmartDesc": {
+    "message": "Feels natural nearby, and keeps the selection inside the block when you move farther away."
+  },
+  "modeNearest": {
+    "message": "Nearest text"
+  },
+  "modeNearestDesc": {
+    "message": "Stops at the text position nearest the pointer."
+  },
+  "modeBlock": {
+    "message": "Block edge"
+  },
+  "modeBlockDesc": {
+    "message": "Stops at the edge of the paragraph or heading where the selection started."
+  },
+  "altBypassNote": {
+    "message": "Hold Alt when starting a drag to temporarily disable the limit and select across multiple blocks."
+  },
+  "sensitiveNote": {
+    "message": "Automatically pauses near password, payment-card, and authentication-code fields."
+  },
+  "privacyNote": {
+    "message": "Runs entirely on your device. Page content and form input are never stored or sent."
+  },
+  "saved": {
+    "message": "Saved locally."
+  }
+}

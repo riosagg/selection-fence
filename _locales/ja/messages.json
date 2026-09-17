@@ -1,0 +1,53 @@
+{
+  "extName": {
+    "message": "Selection Fence"
+  },
+  "extShortName": {
+    "message": "SelFence"
+  },
+  "extDescription": {
+    "message": "ドラッグ選択を開始した文字ブロック内に留め、無関係な文字列へ選択範囲が飛ぶのを抑えます。"
+  },
+  "actionTitle": {
+    "message": "Selection Fence の設定"
+  },
+  "popupTitle": {
+    "message": "Selection Fence"
+  },
+  "popupSubtitle": {
+    "message": "文字を選択するとき、選択範囲が別の場所へ飛ぶのを防ぎます。"
+  },
+  "modeDifferenceNote": {
+    "message": "※ 3つのモードの違いは、複数行の文章を選択するときに分かりやすく現れます。"
+  },
+  "modeSmart": {
+    "message": "自動（推奨）"
+  },
+  "modeSmartDesc": {
+    "message": "普段は自然に、離れすぎたときはブロック内で止めます。"
+  },
+  "modeNearest": {
+    "message": "最寄り文字"
+  },
+  "modeNearestDesc": {
+    "message": "マウスに近い文字の位置で止めます。"
+  },
+  "modeBlock": {
+    "message": "ブロック端"
+  },
+  "modeBlockDesc": {
+    "message": "選択を開始した段落・見出しの端で止めます。"
+  },
+  "altBypassNote": {
+    "message": "Altを押しながらドラッグを開始すると、一時的に制限を解除して複数のブロックを選択できます。"
+  },
+  "sensitiveNote": {
+    "message": "パスワード・カード・認証コード欄の近くでは自動停止します。"
+  },
+  "privacyNote": {
+    "message": "すべて端末内で動作し、ページ内容や入力内容を保存・送信しません。"
+  },
+  "saved": {
+    "message": "端末内に保存しました。"
+  }
+}
