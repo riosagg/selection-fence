@@ -47,6 +47,25 @@
   "privacyNote": {
     "message": "すべて端末内で動作し、ページ内容や入力内容を保存・送信しません。"
   },
+  "diagnosticsTitle": { "message": "不具合の診断" },
+  "diagnosticsEnable": { "message": "診断ログを記録する" },
+  "diagnosticsDescription": { "message": "直近200件の動作と停止理由を、このページのメモリ内に記録します。本文・選択文字・URL・入力値は含みません。" },
+  "diagnosticsShow": { "message": "ログを表示" },
+  "diagnosticsCopy": { "message": "コピー" },
+  "diagnosticsClear": { "message": "消去" },
+  "diagnosticsLogLabel": { "message": "このページの診断ログ" },
+  "diagnosticsEnabled": { "message": "記録中です。設定画面を閉じて操作し、症状が出たらこのページでログを表示してください。" },
+  "diagnosticsDisabled": { "message": "診断ログはオフです。記録は消去されています。" },
+  "diagnosticsNotRecording": { "message": "記録がオフのため、失敗時の情報は残っていません。「診断ログを記録する」をオンにし、設定画面を閉じてから症状を再現してください。" },
+  "diagnosticsEmpty": { "message": "記録はオンですが、ログは空です。設定画面を閉じて操作し、症状が出てから再びログを表示してください。" },
+  "diagnosticsConfigured": { "message": "診断の設定はオンです。「ログを表示」でこのページの記録状態を確認できます。" },
+  "diagnosticsChecking": { "message": "このページの記録状態を確認しています…" },
+  "diagnosticsNotConfirmed": { "message": "設定は保存しましたが、このページへの反映を確認できません。ページを再読み込みしてから記録状態を確認してください。" },
+  "diagnosticsReady": { "message": "このページのログです。コピーして共有できます。" },
+  "diagnosticsUnavailable": { "message": "このページのログを取得できません。通常のWebページを開き、再読み込みしてからお試しください。" },
+  "diagnosticsSaveFailed": { "message": "診断ログの設定を保存できませんでした。" },
+  "diagnosticsCopied": { "message": "診断ログをコピーしました。" },
+  "diagnosticsCopyFailed": { "message": "コピーできませんでした。ログ欄の文字を手動でコピーしてください。" },
   "saved": {
     "message": "端末内に保存しました。"
   }

@@ -8,7 +8,7 @@
      ---------------------------------------------------------
      - No external network communication
      - No persistent storage of page content, selected text, or form input values
-     - Only the behavior mode (smart / nearest / block) is stored in chrome.storage.local
+     - Only the behavior mode and diagnostic logging preference are stored in chrome.storage.local
      - No GM/UserScript APIs are used
      - Does not run inside iframes
      - Runs in the Chrome content script ISOLATED world
@@ -20,6 +20,7 @@
      ---------------------------------------------------------
      - Performs no caret lookup, DOM mutation, or sensitive-context checks until the pointer moves at least 4 px
      - After drag confirmation, re-resolves the current Selection/DOM on the next animation frame
+     - Retries transient startup failures without discarding the current drag
      - Avoids operating on stale elements if hydration or an SPA replaces the DOM immediately after the drag starts
      - Does not inherit an old anchor when a previous selection is still present
      - No continuous timers, MutationObserver, network activity, or background processing
@@ -41,9 +42,24 @@
    * 'block'   : Always clamp to the beginning or end of the starting block (similar to v3.4 behavior)
    */
   let clampMode = 'smart';
+  let diagnosticsEnabled = false;
+  const DIAGNOSTIC_LIMIT = 200;
+  const scriptStartedAt = performance.now();
+  const diagnosticEvents = [];
+  let droppedDiagnosticEvents = 0;
+  let diagnosticSequence = 0;
+  let interactionSequence = 0;
+  let modeSettingsRevision = 0;
+  let diagnosticSettingsRevision = 0;
 
   /* Treat movement at or above this distance as a drag. CSS px. */
   const DRAG_THRESHOLD = 4;
+
+  /* Retry transient startup failures for a short burst, then wait for new input. */
+  const MAX_ACTIVATION_ATTEMPTS = 8;
+
+  /* Some input sources report buttons=0 before delivering mouseup. */
+  const MOUSEUP_WAIT_MS = 250;
 
   /* Auto-pause within this distance of a sensitive field. CSS px. */
   const SENSITIVE_DISTANCE = 320;
@@ -66,18 +82,24 @@
       : 'smart';
   }
 
-  function loadClampMode() {
+  function loadSettings() {
+    const modeRevision = modeSettingsRevision;
+    const diagnosticsRevision = diagnosticSettingsRevision;
     try {
       chrome.storage.local.get(
-        { clampMode: 'smart' },
+        { clampMode: 'smart', diagnosticsEnabled: false },
         result => {
           if (chrome.runtime.lastError) {
             return;
           }
 
-          clampMode = normalizeClampMode(
-            result && result.clampMode
-          );
+          // A storage change may arrive before this older read completes.
+          if (modeSettingsRevision === modeRevision) {
+            clampMode = normalizeClampMode(result && result.clampMode);
+          }
+          if (diagnosticSettingsRevision === diagnosticsRevision) {
+            setDiagnosticsEnabled(result && result.diagnosticsEnabled === true);
+          }
         }
       );
     } catch (_) {
@@ -92,16 +114,19 @@
           areaName === 'local' &&
           changes.clampMode
         ) {
+          modeSettingsRevision += 1;
           clampMode = normalizeClampMode(
             changes.clampMode.newValue
           );
+          diagnostic('settings.mode_changed');
+        }
+        if (areaName === 'local' && changes.diagnosticsEnabled) {
+          diagnosticSettingsRevision += 1;
+          setDiagnosticsEnabled(changes.diagnosticsEnabled.newValue === true);
         }
       }
     );
   } catch (_) {}
-
-  loadClampMode();
-
 
   /* =========================================================
      Runtime state
@@ -120,7 +145,131 @@
   let correcting = false;
   let clampFrameId = null;
   let releaseFrameId = null;
+  let mouseupWait = null;
   let styleElement = null;
+
+  /* =========================================================
+     Optional, bounded diagnostics (no page text, URLs, or DOM identifiers)
+     ========================================================= */
+
+  function diagnosticPhase() {
+    if (state) return 'locked';
+    if (activationCandidate) return 'activating';
+    if (pending) return 'pending';
+    return 'idle';
+  }
+
+  function diagnostic(event, details = {}) {
+    if (!diagnosticsEnabled) return;
+
+    if (diagnosticEvents.length === DIAGNOSTIC_LIMIT) {
+      diagnosticEvents.shift();
+      droppedDiagnosticEvents += 1;
+    }
+    diagnosticEvents.push({
+      sequence: ++diagnosticSequence,
+      elapsedMs: Math.round(performance.now() - scriptStartedAt),
+      interaction: interactionSequence,
+      event,
+      phase: diagnosticPhase(),
+      mode: clampMode,
+      readyState: document.readyState,
+      ...details
+    });
+  }
+
+  function diagnosticTag(element) {
+    if (!diagnosticsEnabled || !(element instanceof Element)) return null;
+    // Custom tag names, ids, classes, attributes and node objects are never exported.
+    return /^(a|p|li|dt|dd|td|th|blockquote|pre|figcaption|caption|summary|label|legend|h[1-6]|div|span|strong|em|code|main|article|section|nav|aside|header|footer|body|html|input|textarea|select|button|form|dialog)$/.test(element.localName)
+      ? element.localName
+      : 'other';
+  }
+
+  function diagnosticPosition(position) {
+    if (!diagnosticsEnabled || !position || !position.node) return null;
+    return {
+      kind: position.node.nodeType === Node.TEXT_NODE ? 'text' : 'other',
+      tag: diagnosticTag(elementOf(position.node)),
+      connected: position.node.isConnected,
+      offset: position.offset
+    };
+  }
+
+  function diagnosticError(error) {
+    // Exception messages may contain site data; retain only standard error names.
+    return /^(Error|TypeError|ReferenceError|IndexSizeError|InvalidStateError|NotFoundError|SecurityError)$/.test(error && error.name)
+      ? error.name
+      : 'Error';
+  }
+
+  function diagnosticSelection() {
+    if (!diagnosticsEnabled) return null;
+    const selection = window.getSelection();
+    if (!selection) return null;
+    const anchor = { node: selection.anchorNode, offset: selection.anchorOffset };
+    const focus = { node: selection.focusNode, offset: selection.focusOffset };
+    return {
+      collapsed: selection.isCollapsed,
+      anchor: diagnosticPosition(anchor),
+      focus: diagnosticPosition(focus),
+      anchorInsideRoot: state ? positionInside(state.root, anchor) : null,
+      focusInsideRoot: state ? positionInside(state.root, focus) : null
+    };
+  }
+
+  function setDiagnosticsEnabled(enabled) {
+    if (diagnosticsEnabled === enabled) return;
+    diagnosticsEnabled = enabled;
+    diagnosticEvents.length = 0;
+    droppedDiagnosticEvents = 0;
+    if (enabled) diagnostic('diagnostics.enabled');
+  }
+
+  function diagnosticReport() {
+    return {
+      schemaVersion: 1,
+      extensionVersion: chrome.runtime.getManifest().version,
+      enabled: diagnosticsEnabled,
+      limit: DIAGNOSTIC_LIMIT,
+      droppedEvents: droppedDiagnosticEvents,
+      status: {
+        phase: diagnosticPhase(),
+        mode: clampMode,
+        readyState: document.readyState,
+        visibility: document.visibilityState,
+        focused: document.hasFocus(),
+        awaitingMouseUp: mouseupWait !== null,
+        attempts: activationCandidate ? activationCandidate.attempts : 0,
+        lastFailure: activationCandidate ? activationCandidate.failureReason || null : null
+      },
+      events: diagnosticEvents.slice()
+    };
+  }
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id) return;
+    if (message && message.type === 'selection-fence:diagnostics:get') {
+      sendResponse(diagnosticReport());
+    } else if (message && message.type === 'selection-fence:diagnostics:clear') {
+      diagnosticEvents.length = 0;
+      droppedDiagnosticEvents = 0;
+      sendResponse(diagnosticReport());
+    } else if (message && message.type === 'selection-fence:diagnostics:sync') {
+      const revision = diagnosticSettingsRevision;
+      chrome.storage.local.get({ diagnosticsEnabled: false }, result => {
+        if (!chrome.runtime.lastError && diagnosticSettingsRevision === revision) {
+          // Invalidate older in-flight reads, including startup settings.
+          diagnosticSettingsRevision += 1;
+          setDiagnosticsEnabled(result.diagnosticsEnabled === true);
+        }
+        sendResponse(diagnosticReport());
+      });
+      return true;
+    }
+  });
+
+  loadSettings();
 
 
   /* =========================================================
@@ -349,7 +498,12 @@
       !node ||
       !node.isConnected ||
       !Number.isInteger(offset) ||
-      offset < 0
+      offset < 0 ||
+      offset > (
+        node.nodeType === Node.TEXT_NODE
+          ? node.length
+          : node.childNodes.length
+      )
     ) {
       return null;
     }
@@ -360,66 +514,37 @@
     };
   }
 
-  /*
-   * v3.6:
-   * Instead of resolving the anchor inside the mousemove handler after crossing 4 px,
-   * wait until the next animation frame and prefer the Selection.anchor produced by the browser.
-   *
-   * Even if hydration or another startup process replaces the DOM immediately after page load,
-   * do not keep using stale Element references.
-   *
-   * Only if the browser Selection has not updated yet,
-   * fall back to resolving the caret from the original pointer coordinates.
-   */
-  /*
-   * v3.7:
-   * Resolve the anchor for a new drag from the position where this mousedown started.
-   *
-   * If text was already selected, Chrome may temporarily keep the old Selection.anchor
-   * while moving only the focus to the new drag position.
-   * Reusing that anchor would create a huge selection from the previous selection position
-   * to the current pointer position.
-   *
-   * Therefore:
-   * 1. If a non-collapsed selection already existed at mousedown, never inherit its old anchor;
-   *    resolve a fresh caret from the current DOM at the mousedown coordinates.
-   * 2. If there was no existing selection, prefer the Selection.anchor created by the browser
-   *    on the next frame, and fall back to the original coordinates if it has not updated yet.
-   * 3. After DOM replacement, use only connected positions and never stale nodes.
-   * 3. After DOM replacement, use only connected positions and never stale nodes.
-   */
-  function resolveLiveDragAnchor(candidate) {
-    const snapshot = candidate.initialSelection;
+  function usableDragAnchor(position) {
+    if (!position || !connectedPosition(position.node, position.offset)) {
+      return null;
+    }
 
-    const coordinateAnchor = caretAt(
+    const element = elementOf(position.node);
+    const root = findRoot(position.node);
+
+    return (
+      element &&
+      !isExcludedInteractionTarget(element) &&
+      root &&
+      root.isConnected &&
+      positionInside(root, position)
+    ) ? position : null;
+  }
+
+  /* Prefer the browser's new anchor only when it identifies a usable text block. */
+  function resolveLiveDragAnchor(candidate) {
+    if (candidate.origin) {
+      candidate.anchorSource = 'bookmark';
+      return resolveOriginAnchor(candidate.origin, candidate);
+    }
+
+    candidate.failureReason = 'start_position_unavailable';
+    candidate.anchorSource = 'coordinates';
+    const snapshot = candidate.initialSelection;
+    const coordinateAnchor = usableDragAnchor(caretAt(
       candidate.startX,
       candidate.startY
-    );
-
-    const usableCoordinateAnchor = (() => {
-      if (
-        !coordinateAnchor ||
-        !coordinateAnchor.node ||
-        !coordinateAnchor.node.isConnected
-      ) {
-        return null;
-      }
-
-      const coordinateElement = elementOf(
-        coordinateAnchor.node
-      );
-
-      if (
-        !coordinateElement ||
-        isExcludedInteractionTarget(
-          coordinateElement
-        )
-      ) {
-        return null;
-      }
-
-      return coordinateAnchor;
-    })();
+    ));
 
     /* If a previous selection is still present, do not inherit its old anchor. */
     if (
@@ -427,7 +552,7 @@
       snapshot.rangeCount > 0 &&
       snapshot.isCollapsed === false
     ) {
-      return usableCoordinateAnchor;
+      return coordinateAnchor;
     }
 
     const selection = window.getSelection();
@@ -436,34 +561,139 @@
       selection &&
       selection.rangeCount > 0 &&
       selection.anchorNode &&
+      selection.anchorNode.nodeType === Node.TEXT_NODE &&
       selection.anchorNode.isConnected &&
       selectionChangedSince(
         snapshot,
         selection
       )
     ) {
-      const liveAnchor = connectedPosition(
-        selection.anchorNode,
-        selection.anchorOffset
-      );
+      const liveAnchor = usableDragAnchor({
+        node: selection.anchorNode,
+        offset: selection.anchorOffset
+      });
 
       if (liveAnchor) {
-        const liveElement = elementOf(
-          liveAnchor.node
-        );
-
-        if (
-          liveElement &&
-          !isExcludedInteractionTarget(
-            liveElement
-          )
-        ) {
-          return liveAnchor;
-        }
+        candidate.anchorSource = 'native_selection';
+        return liveAnchor;
       }
     }
 
-    return usableCoordinateAnchor;
+    return coordinateAnchor;
+  }
+
+  /*
+   * Keep a structural bookmark and numeric text offsets for this drag only.
+   * No page text is copied. This survives replacement of both the root and its
+   * text nodes without using the current pointer as a new selection origin.
+   */
+  function captureDragOrigin(root, anchor) {
+    const lineage = [];
+    let current = root;
+
+    while (current.parentElement) {
+      const parent = current.parentElement;
+      lineage.push({
+        parent,
+        index: Array.prototype.indexOf.call(parent.children, current),
+        siblingCount: parent.children.length,
+        tag: current.localName,
+        id: current.id
+      });
+      current = parent;
+    }
+
+    const anchorPath = [];
+    current = anchor.node;
+
+    while (current !== root) {
+      const parent = current.parentNode;
+      anchorPath.unshift(Array.prototype.indexOf.call(parent.childNodes, current));
+      current = parent;
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let textLength = 0;
+    let textOffset = null;
+    let node;
+
+    while ((node = walker.nextNode())) {
+      if (node === anchor.node) {
+        textOffset = textLength + anchor.offset;
+      }
+      textLength += node.length;
+    }
+
+    return { root, lineage, anchorPath, anchorOffset: anchor.offset, textOffset, textLength };
+  }
+
+  function resolveOriginAnchor(origin, candidate) {
+    candidate.failureReason = 'origin_root_missing';
+    let root = origin.root;
+
+    if (!root.isConnected) {
+      const index = origin.lineage.findIndex(step => step.parent.isConnected);
+      if (index < 0) {
+        return null;
+      }
+
+      root = origin.lineage[index].parent;
+      for (let i = index; i >= 0; i -= 1) {
+        const step = origin.lineage[i];
+        const child = step.id
+          ? Array.from(root.children).find(element => element.id === step.id)
+          : root.children[step.index];
+
+        if (
+          !child ||
+          child.localName !== step.tag ||
+          (!step.id && root.children.length !== step.siblingCount)
+        ) {
+          candidate.failureReason = 'origin_structure_changed';
+          return null;
+        }
+        root = child;
+      }
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let textLength = 0;
+    let position = null;
+    let node;
+
+    while ((node = walker.nextNode())) {
+      if (
+        origin.textOffset !== null &&
+        !position &&
+        origin.textOffset <= textLength + node.length
+      ) {
+        position = { node, offset: origin.textOffset - textLength };
+      }
+      textLength += node.length;
+    }
+
+    // Changed content or an incompatible replacement cannot safely reuse the offset.
+    if (textLength !== origin.textLength) {
+      candidate.failureReason = 'origin_text_length_changed';
+      return null;
+    }
+
+    if (origin.textOffset === null) {
+      node = root;
+      for (const index of origin.anchorPath) {
+        node = node.childNodes[index];
+        if (!node) {
+          candidate.failureReason = 'origin_anchor_invalid';
+          return null;
+        }
+      }
+      position = { node, offset: origin.anchorOffset };
+    }
+
+    candidate.failureReason = 'origin_anchor_invalid';
+    return usableDragAnchor(position) && findRoot(position.node) === root
+      ? position
+      : null;
   }
 
 
@@ -540,6 +770,17 @@
     }
 
     try {
+      // Older visibility APIs may be absent or ignore opacity options. These
+      // ancestor properties hide descendants even when the field's own style
+      // looks visible. Visibility itself can be overridden by a descendant.
+      for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        const ancestorStyle = getComputedStyle(ancestor);
+        if (
+          ancestorStyle.display === 'none' ||
+          ancestorStyle.contentVisibility === 'hidden' ||
+          Number(ancestorStyle.opacity) === 0
+        ) return false;
+      }
       const rect = el.getBoundingClientRect();
 
       return (
@@ -1149,7 +1390,8 @@
           focus.offset
         );
       }
-    } catch (_) {
+    } catch (error) {
+      diagnostic('selection.write_failed', { error: diagnosticError(error) });
       /* If an SPA changes the DOM, fail safely and leave the selection untouched. */
     } finally {
       correcting = false;
@@ -1157,14 +1399,30 @@
   }
 
   function clampToRoot() {
+    if (!state) {
+      return;
+    }
+
     if (
-      !state ||
       !state.root ||
       !state.root.isConnected ||
-      !state.anchor.node ||
-      !state.anchor.node.isConnected
+      !connectedPosition(state.anchor.node, state.anchor.offset) ||
+      !positionInside(state.root, state.anchor)
     ) {
-      deactivate();
+      diagnostic('recovery.needed', {
+        rootConnected: !!state.root && state.root.isConnected,
+        anchor: diagnosticPosition(state.anchor)
+      });
+      const candidate = {
+        ...state.drag,
+        origin: state.origin,
+        currentX: state.x,
+        currentY: state.y,
+        released: state.released,
+        releaseSource: state.releaseSource
+      };
+      deactivate('dom_changed');
+      beginActivation(candidate);
       return;
     }
 
@@ -1177,9 +1435,12 @@
     /*
      * If the browser Selection is temporarily lost because the DOM was replaced during page startup,
      * rebuild the selection from the current root/anchor and pointer position.
-     * rebuild the selection from the current root/anchor and pointer position.
      */
     if (!selection.focusNode) {
+      if (state.lastClampReason !== 'selection_missing') {
+        diagnostic('selection.clamped', { reason: 'selection_missing' });
+        state.lastClampReason = 'selection_missing';
+      }
       const recoveredFocus =
         resolveClampFocus(
           state.root,
@@ -1203,8 +1464,9 @@
 
     try {
       rootRect = state.root.getBoundingClientRect();
-    } catch (_) {
-      deactivate();
+    } catch (error) {
+      diagnostic('selection.geometry_failed', { error: diagnosticError(error) });
+      deactivate('root_geometry_failed');
       return;
     }
 
@@ -1224,8 +1486,8 @@
     );
 
     /*
-     * If both the pointer and Selection focus are inside the root,
-     * leave selection behavior entirely to the browser.
+     * If the pointer and Selection focus are inside the root and the anchor is
+     * unchanged, leave selection behavior entirely to the browser.
      *
      * If the pointer is outside the root, compensate according to the selected clamp mode
      * even when CSS keeps focusNode inside the root.
@@ -1243,12 +1505,27 @@
 
     if (
       focusInsideRoot &&
-      !pointerOutsideRoot
+      !pointerOutsideRoot &&
+      selection.anchorNode === state.anchor.node &&
+      selection.anchorOffset === state.anchor.offset
     ) {
+      state.lastClampReason = null;
       return;
     }
 
+    const clampReason = pointerOutsideRoot
+      ? 'pointer_outside_root'
+      : focusInsideRoot ? 'anchor_changed' : 'focus_outside_root';
+    if (state.lastClampReason !== clampReason) {
+      diagnostic('selection.clamped', { reason: clampReason, focusInsideRoot });
+      state.lastClampReason = clampReason;
+    }
+
     const focus =
+      (focusInsideRoot && !pointerOutsideRoot && connectedPosition(
+        selection.focusNode,
+        selection.focusOffset
+      )) ||
       resolveClampFocus(
         state.root,
         state.x,
@@ -1354,10 +1631,17 @@
 
 
   /* =========================================================
-     Deferred activation (v3.7)
+     Deferred activation and bounded startup recovery
      ========================================================= */
 
-  function cancelActivation() {
+  function cancelActivation(reason = 'new_candidate') {
+    if (activationCandidate) {
+      diagnostic('activation.cancelled', {
+        reason,
+        attempts: activationCandidate.attempts,
+        lastFailure: activationCandidate.failureReason || null
+      });
+    }
     if (activationFrameId !== null) {
       cancelAnimationFrame(activationFrameId);
       activationFrameId = null;
@@ -1379,14 +1663,28 @@
       releaseFrameId = null;
 
       if (state === oldState) {
-        deactivate();
+        // The mouseup capture handler runs before page handlers and native
+        // finalization. Clamp their final result before cancelling pending work.
+        diagnostic('release.finalizing', {
+          source: oldState.releaseSource,
+          selection: diagnosticSelection()
+        });
+        clampToRoot();
+        // DOM recovery may have replaced the state; let it finish independently.
+        if (state === oldState) {
+          diagnostic('release.completed', {
+            source: oldState.releaseSource,
+            selection: diagnosticSelection()
+          });
+          deactivate(oldState.releaseSource === 'mouseup_timeout' ? 'mouseup_timeout' : 'mouse_released');
+        }
       }
     });
   }
 
   function activateCandidate(liveCandidate) {
     if (!liveCandidate) {
-      return;
+      return 'blocked';
     }
 
     const anchor = resolveLiveDragAnchor(
@@ -1394,8 +1692,13 @@
     );
 
     if (!anchor) {
-      return;
+      return 'retry';
     }
+
+    diagnostic('anchor.resolved', {
+      source: liveCandidate.anchorSource,
+      anchor: diagnosticPosition(anchor)
+    });
 
     const startElement = elementOf(anchor.node);
 
@@ -1404,7 +1707,8 @@
       !startElement.isConnected ||
       isExcludedInteractionTarget(startElement)
     ) {
-      return;
+      diagnostic('activation.blocked', { reason: 'excluded_target' });
+      return 'blocked';
     }
 
     const root = findRoot(anchor.node);
@@ -1414,7 +1718,8 @@
       !root.isConnected ||
       !positionInside(root, anchor)
     ) {
-      return;
+      liveCandidate.failureReason = 'root_unavailable';
+      return 'retry';
     }
 
     /*
@@ -1428,7 +1733,8 @@
         liveCandidate.startY
       )
     ) {
-      return;
+      diagnostic('activation.blocked', { reason: 'sensitive_context' });
+      return 'blocked';
     }
 
     if (
@@ -1436,38 +1742,80 @@
         root,
         anchor,
         liveCandidate.currentX,
-        liveCandidate.currentY
+        liveCandidate.currentY,
+        liveCandidate
       )
     ) {
-      return;
+      liveCandidate.failureReason = 'lock_installation_failed';
+      return 'retry';
     }
 
-    /*
-     * For a very quick drag followed by mouseup before the first animation frame,
-     * clamp the final selection once before releasing the lock.
-     */
+    diagnostic(liveCandidate.origin ? 'recovery.succeeded' : 'activation.succeeded', {
+      attempts: liveCandidate.attempts + 1,
+      waitMs: Math.round(performance.now() - liveCandidate.startedAt),
+      rootTag: diagnosticTag(root),
+      released: !!liveCandidate.released
+    });
+
+    /* Correct on this frame, including quick drags already followed by mouseup. */
+    clampToRoot();
+
     if (liveCandidate.released) {
-      clampToRoot();
       releaseActiveLockSoon();
+    }
+
+    return 'active';
+  }
+
+  function scheduleActivation() {
+    if (activationFrameId !== null || !activationCandidate) {
       return;
     }
 
-    scheduleClamp();
+    activationFrameId = requestAnimationFrame(() => {
+      activationFrameId = null;
+      const liveCandidate = activationCandidate;
+
+      if (!liveCandidate) return;
+
+      const result = activateCandidate(liveCandidate);
+      if (activationCandidate !== liveCandidate) return;
+
+      if (result !== 'retry') {
+        activationCandidate = null;
+        if (result === 'blocked') cancelMouseUpWait('activation_blocked');
+        return;
+      }
+
+      liveCandidate.attempts += 1;
+      diagnostic('activation.retry', {
+        reason: liveCandidate.failureReason,
+        attempt: liveCandidate.attempts,
+        recovery: !!liveCandidate.origin,
+        released: !!liveCandidate.released
+      });
+      if (liveCandidate.attempts < MAX_ACTIVATION_ATTEMPTS) {
+        scheduleActivation();
+      } else if (liveCandidate.released) {
+        cancelActivation('retry_limit_after_release');
+      } else {
+        diagnostic('activation.waiting_for_input', {
+          reason: liveCandidate.failureReason,
+          attempts: liveCandidate.attempts
+        });
+      }
+      // While held, retain the candidate without spinning. New input can retry it.
+    });
   }
 
   function beginActivation(candidate) {
     cancelActivation();
-
-    activationCandidate = candidate;
-
-    activationFrameId = requestAnimationFrame(() => {
-      activationFrameId = null;
-
-      const liveCandidate = activationCandidate;
-      activationCandidate = null;
-
-      activateCandidate(liveCandidate);
+    activationCandidate = { ...candidate, attempts: 0 };
+    diagnostic('activation.scheduled', {
+      recovery: !!candidate.origin,
+      released: !!candidate.released
     });
+    scheduleActivation();
   }
 
 
@@ -1475,8 +1823,8 @@
      Lock lifecycle
      ========================================================= */
 
-  function activate(root, anchor, x, y) {
-    deactivate();
+  function activate(root, anchor, x, y, drag) {
+    deactivate('new_lock');
     installCSS();
 
     const touched = [];
@@ -1514,13 +1862,18 @@
         anchor,
         x,
         y,
+        drag,
+        origin: drag.origin || captureDragOrigin(root, anchor),
+        released: !!drag.released,
+        releaseSource: drag.releaseSource || null,
         lastValidFocus: anchor,
         touched,
         activeClassAlreadyPresent
       };
 
       return true;
-    } catch (_) {
+    } catch (error) {
+      diagnostic('activation.install_failed', { error: diagnosticError(error) });
       restoreTrackedAttributes(touched);
 
       if (!activeClassAlreadyPresent) {
@@ -1534,7 +1887,7 @@
     }
   }
 
-  function deactivate() {
+  function deactivate(reason) {
     cancelClamp();
     cancelRelease();
 
@@ -1545,6 +1898,7 @@
       return;
     }
 
+    diagnostic('lock.released', { reason, rootTag: diagnosticTag(oldState.root) });
     restoreTrackedAttributes(oldState.touched);
 
     if (!oldState.activeClassAlreadyPresent) {
@@ -1556,14 +1910,18 @@
     }
   }
 
-  function resetEverything() {
+  function resetEverything(reason) {
+    if (pending || activationCandidate || state) {
+      diagnostic('drag.reset', { reason });
+    }
     pending = null;
-    cancelActivation();
-    deactivate();
+    cancelMouseUpWait(reason);
+    cancelActivation(reason);
+    deactivate(reason);
   }
 
   function destroy() {
-    resetEverything();
+    resetEverything('page_hidden');
     removeCSS();
   }
 
@@ -1573,14 +1931,81 @@
      ========================================================= */
 
   function shouldBypassMouseDown(e) {
-    return (
-      e.button !== 0 ||
-      e.detail > 1 ||
-      e.altKey ||
-      e.shiftKey ||
-      e.ctrlKey ||
-      e.metaKey
-    );
+    if (e.button !== 0) return 'non_primary_button';
+    if (e.detail > 1) return 'multi_click';
+    if (e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) return 'modifier_key';
+    return null;
+  }
+
+  function cancelMouseUpWait(reason) {
+    if (!mouseupWait) return;
+    window.clearTimeout(mouseupWait.timerId);
+    diagnostic('release.wait_cancelled', {
+      reason,
+      waitMs: Math.round(performance.now() - mouseupWait.startedAt)
+    });
+    mouseupWait = null;
+  }
+
+  function deferReleaseUntilMouseUp(x, y, buttons) {
+    if (mouseupWait) return;
+
+    // Keep the first release hint's position. Later hover movements must not
+    // move the selection endpoint or indefinitely extend the waiting period.
+    const waiting = { x, y, interaction: interactionSequence, startedAt: performance.now() };
+    mouseupWait = waiting;
+    diagnostic('release.awaiting_mouseup', {
+      buttons,
+      graceMs: MOUSEUP_WAIT_MS,
+      selection: diagnosticSelection()
+    });
+    waiting.timerId = window.setTimeout(() => {
+      if (mouseupWait !== waiting) return;
+      mouseupWait = null;
+      if (waiting.interaction !== interactionSequence) return;
+      diagnostic('release.mouseup_timeout', {
+        waitMs: Math.round(performance.now() - waiting.startedAt)
+      });
+      completeMouseRelease(waiting.x, waiting.y, 'mouseup_timeout');
+    }, MOUSEUP_WAIT_MS);
+  }
+
+  function completeMouseRelease(x, y, source) {
+    cancelMouseUpWait(source);
+
+    // Also handles quick drags with no held-button mousemove before release.
+    if (pending) {
+      const distance = Math.hypot(x - pending.startX, y - pending.startY);
+      if (distance >= DRAG_THRESHOLD) {
+        const candidate = {
+          ...pending, currentX: x, currentY: y, released: true, releaseSource: source
+        };
+        diagnostic('drag.threshold_crossed', { source, distance: Math.round(distance) });
+        pending = null;
+        beginActivation(candidate);
+        return;
+      }
+      diagnostic('drag.not_started', { reason: 'below_drag_threshold', distance: Math.round(distance) });
+      pending = null;
+    }
+
+    if (activationCandidate) {
+      activationCandidate.currentX = x;
+      activationCandidate.currentY = y;
+      activationCandidate.released = true;
+      activationCandidate.releaseSource = source;
+      activationCandidate.attempts = 0;
+      scheduleActivation();
+      return;
+    }
+
+    if (!state) return;
+    state.x = x;
+    state.y = y;
+    state.released = true;
+    state.releaseSource = source;
+    clampToRoot();
+    if (state) releaseActiveLockSoon();
   }
 
 
@@ -1595,13 +2020,25 @@
         return;
       }
 
-      resetEverything();
+      resetEverything('new_mousedown');
+      interactionSequence += 1;
+      diagnostic('pointer.down', {
+        clickCount: e.detail,
+        button: e.button,
+        alt: e.altKey,
+        shift: e.shiftKey,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        targetTag: diagnosticTag(e.target)
+      });
 
-      if (
-        shouldBypassMouseDown(e) ||
-        !(e.target instanceof Element) ||
-        isExcludedInteractionTarget(e.target)
-      ) {
+      const bypassReason = shouldBypassMouseDown(e) || (
+        !(e.target instanceof Element)
+          ? 'non_element_target'
+          : isExcludedInteractionTarget(e.target) ? 'excluded_target' : null
+      );
+      if (bypassReason) {
+        diagnostic('interaction.bypassed', { reason: bypassReason });
         return;
       }
 
@@ -1610,10 +2047,14 @@
        * Keep only the start coordinates and the initial Selection snapshot in memory.
        */
       pending = {
+        startedAt: performance.now(),
         startX: e.clientX,
         startY: e.clientY,
         initialSelection: captureSelectionSnapshot()
       };
+      diagnostic('drag.pending', {
+        existingSelection: !!pending.initialSelection && !pending.initialSelection.isCollapsed
+      });
     },
     true
   );
@@ -1625,9 +2066,15 @@
         return;
       }
 
+      if (e.buttons & 1) cancelMouseUpWait('button_held_again');
+
       if (state) {
         if (!(e.buttons & 1)) {
-          resetEverything();
+          // Hover events immediately after mouseup must not cancel finalization
+          // or replace the release coordinates with a later pointer position.
+          if (state.released) return;
+          deferReleaseUntilMouseUp(e.clientX, e.clientY, e.buttons);
+          scheduleClamp();
           return;
         }
 
@@ -1644,12 +2091,19 @@
        */
       if (activationCandidate) {
         if (!(e.buttons & 1)) {
-          cancelActivation();
+          if (!activationCandidate.released) {
+            deferReleaseUntilMouseUp(e.clientX, e.clientY, e.buttons);
+          }
           return;
         }
 
         activationCandidate.currentX = e.clientX;
         activationCandidate.currentY = e.clientY;
+        if (activationFrameId === null) {
+          diagnostic('activation.resumed', { source: 'mousemove' });
+          activationCandidate.attempts = 0;
+          scheduleActivation();
+        }
         return;
       }
 
@@ -1658,7 +2112,7 @@
       }
 
       if (!(e.buttons & 1)) {
-        pending = null;
+        deferReleaseUntilMouseUp(e.clientX, e.clientY, e.buttons);
         return;
       }
 
@@ -1678,6 +2132,7 @@
         currentY: e.clientY
       };
 
+      diagnostic('drag.threshold_crossed', { source: 'mousemove', distance: Math.round(Math.hypot(dx, dy)) });
       pending = null;
 
       /*
@@ -1696,58 +2151,12 @@
       if (!e.isTrusted) {
         return;
       }
-
-      /*
-       * Even if mousemove events are coalesced or skipped, if the total mousedown-to-mouseup
-       * movement exceeds the threshold, inspect the final Selection on the next frame.
-       */
-      if (pending) {
-        const dx = e.clientX - pending.startX;
-        const dy = e.clientY - pending.startY;
-
-        if (
-          Math.hypot(dx, dy) >=
-          DRAG_THRESHOLD
-        ) {
-          const candidate = {
-            ...pending,
-            currentX: e.clientX,
-            currentY: e.clientY,
-            released: true
-          };
-
-          pending = null;
-          beginActivation(candidate);
-          return;
-        }
-
-        pending = null;
-      }
-
-      /*
-       * If activation is already pending after crossing 4 px, do not cancel it on mouseup;
-       * allow the completed post-mouseup Selection to be clamped on the next frame.
-       */
-      if (activationCandidate) {
-        activationCandidate.currentX = e.clientX;
-        activationCandidate.currentY = e.clientY;
-        activationCandidate.released = true;
+      diagnostic('pointer.up', { button: e.button, buttons: e.buttons, selection: diagnosticSelection() });
+      if (e.button !== 0) {
+        diagnostic('release.ignored', { reason: 'non_primary_button', button: e.button, buttons: e.buttons });
         return;
       }
-
-      if (!state) {
-        return;
-      }
-
-      state.x = e.clientX;
-      state.y = e.clientY;
-      clampToRoot();
-
-      if (!state) {
-        return;
-      }
-
-      releaseActiveLockSoon();
+      completeMouseRelease(e.clientX, e.clientY, 'mouseup');
     },
     true
   );
@@ -1760,6 +2169,15 @@
   document.addEventListener(
     'selectionchange',
     () => {
+      if (activationCandidate && !correcting) {
+        if (!activationCandidate.released && activationFrameId === null) {
+          diagnostic('activation.resumed', { source: 'selectionchange' });
+          activationCandidate.attempts = 0;
+        }
+        scheduleActivation();
+        return;
+      }
+
       if (
         !state ||
         correcting
@@ -1774,9 +2192,18 @@
   document.addEventListener(
     'dragstart',
     e => {
-      if (e.isTrusted) {
-        resetEverything();
-      }
+      if (!e.isTrusted || (!pending && !activationCandidate && !state)) return;
+      const interaction = interactionSequence;
+      // Page handlers can still cancel dragstart after this capture listener.
+      // A task, rather than a microtask, observes their final cancellation state.
+      window.setTimeout(() => {
+        if (interaction !== interactionSequence) return;
+        if (e.defaultPrevented) {
+          diagnostic('native_drag.cancelled');
+          return;
+        }
+        resetEverything('native_drag');
+      }, 0);
     },
     true
   );
@@ -1785,7 +2212,7 @@
     'contextmenu',
     e => {
       if (e.isTrusted) {
-        resetEverything();
+        resetEverything('context_menu');
       }
     },
     true
@@ -1798,7 +2225,7 @@
         e.isTrusted &&
         e.key === 'Escape'
       ) {
-        resetEverything();
+        resetEverything('escape');
       }
     },
     true
@@ -1811,7 +2238,11 @@
 
   window.addEventListener(
     'blur',
-    resetEverything,
+    e => {
+      // Capture also receives blur from inputs and other focused elements.
+      // Their normal focus loss during mousedown must not cancel the new drag.
+      if (e.isTrusted && e.target === window) resetEverything('window_blur');
+    },
     true
   );
 
@@ -1819,14 +2250,17 @@
     'visibilitychange',
     () => {
       if (document.hidden) {
-        resetEverything();
+        resetEverything('document_hidden');
       }
     }
   );
 
   window.addEventListener(
     'pagehide',
-    destroy,
+    e => {
+      // Chromium's native pagehide uses Document as its legacy event target.
+      if (e.isTrusted && (e.target === document || e.target === window)) destroy();
+    },
     true
   );
 })();

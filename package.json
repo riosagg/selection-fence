@@ -1,0 +1,14 @@
+{
+  "name": "selection-fence",
+  "private": true,
+  "scripts": {
+    "test": "node --test --test-timeout=15000 tests/*.test.cjs",
+    "test:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

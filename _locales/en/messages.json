@@ -47,6 +47,25 @@
   "privacyNote": {
     "message": "Runs entirely on your device. Page content and form input are never stored or sent."
   },
+  "diagnosticsTitle": { "message": "Troubleshooting" },
+  "diagnosticsEnable": { "message": "Record diagnostic logs" },
+  "diagnosticsDescription": { "message": "Keeps the latest 200 actions and pause reasons in this page's memory. Excludes page text, selected text, URLs and input values." },
+  "diagnosticsShow": { "message": "Show logs" },
+  "diagnosticsCopy": { "message": "Copy" },
+  "diagnosticsClear": { "message": "Clear" },
+  "diagnosticsLogLabel": { "message": "Diagnostics for this page" },
+  "diagnosticsEnabled": { "message": "Recording. Close this popup and use the page. Show the logs on this page after the issue occurs." },
+  "diagnosticsDisabled": { "message": "Diagnostics are off. Recorded events have been erased." },
+  "diagnosticsNotRecording": { "message": "Recording is off, so there is no failure history. Enable diagnostic logging, close this popup and reproduce the issue." },
+  "diagnosticsEmpty": { "message": "Recording is on but the log is empty. Close this popup, use the page and show logs after the issue occurs." },
+  "diagnosticsConfigured": { "message": "Diagnostics are configured on. Show logs to check recording on this page." },
+  "diagnosticsChecking": { "message": "Checking recording on this page…" },
+  "diagnosticsNotConfirmed": { "message": "The preference was saved, but this page did not confirm it. Reload the page, then check recording again." },
+  "diagnosticsReady": { "message": "Logs for this page are ready to copy and share." },
+  "diagnosticsUnavailable": { "message": "Logs are unavailable on this page. Open a regular web page, reload it and try again." },
+  "diagnosticsSaveFailed": { "message": "Could not save the diagnostic logging preference." },
+  "diagnosticsCopied": { "message": "Diagnostic logs copied." },
+  "diagnosticsCopyFailed": { "message": "Could not copy. Copy the selected log text manually." },
   "saved": {
     "message": "Saved locally."
   }

@@ -2,7 +2,7 @@
 
 **Selection Fence**
 
-Last updated / 最終更新: 2026-09-17
+Last updated / 最終更新: 2026-10-15
 
 ## English
 
@@ -23,9 +23,13 @@ Selection Fence does **not** persistently store, transmit, sell, or share page c
 
 ### Local storage
 
-Selection Fence stores only the selected behavior mode (`smart`, `nearest`, or `block`) using `chrome.storage.local`.
+Selection Fence stores only the selected behavior mode (`smart`, `nearest`, or `block`) and whether diagnostic logging is enabled using `chrome.storage.local`.
 
-This setting is used only to remember the user's preferred selection behavior. Selection Fence does not transmit this setting to an external server.
+These settings remember the user's preferences and are not transmitted to an external server.
+
+### Optional diagnostic logs
+
+Diagnostic logging is off by default. When enabled, the extension keeps up to 200 events in each page's memory, including relative timings, click counts, fixed technical reason codes, standard element types, connection status and numeric selection offsets. Logs exclude page text, selected text, URLs, element ids/classes, form input values and exception messages. Logs are not written to persistent storage or automatically transmitted. They are erased when logging is disabled or the page is fully reloaded. The popup can display, clear or copy the current page's report to the clipboard at the user's request.
 
 ### Page access
 
@@ -76,9 +80,13 @@ Selection Fence は、ページ本文、選択文字列、閲覧履歴、フォ�
 
 ### ローカル保存
 
-Selection Fence が保存するのは、選択した動作モード（`smart` / `nearest` / `block`）のみです。
+Selection Fence が保存するのは、選択した動作モード（`smart` / `nearest` / `block`）と診断ログのオン・オフ設定のみです。
 
-この設定は `chrome.storage.local` に保存され、利用者が選んだ動作モードを記憶するためだけに使用されます。Selection Fence がこの設定を外部サーバーへ送信することはありません。
+これらは `chrome.storage.local` に保存され、利用者の設定を記憶するために使用されます。外部サーバーへ送信されません。
+
+### 任意の診断ログ
+
+診断ログは初期状態ではオフです。オンにした場合、相対的な経過時間、クリック回数、定型の動作理由、標準的な要素種類、接続状態、数値の選択位置など、最大200件のイベントを各ページのメモリ内に記録します。本文、選択文字、URL、要素の id/class、フォーム入力値、例外メッセージは含みません。ログは永続保存・自動送信されず、オフにするかページを完全に再読み込みすると消えます。利用者の操作により、設定画面から現在のページのログを表示・消去・クリップボードへコピーできます。
 
 ### ページへのアクセス
 

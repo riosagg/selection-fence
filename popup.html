@@ -39,6 +39,22 @@
     <p class="mode-note" data-i18n="altBypassNote"></p>
     <p class="note" data-i18n="sensitiveNote"></p>
     <p class="privacy" data-i18n="privacyNote"></p>
+    <details class="diagnostics" id="diagnostics-section">
+      <summary data-i18n="diagnosticsTitle"></summary>
+      <label class="diagnostics-toggle">
+        <input type="checkbox" id="diagnostics-enabled" disabled>
+        <span data-i18n="diagnosticsEnable"></span>
+      </label>
+      <p class="mode-note" data-i18n="diagnosticsDescription"></p>
+      <div class="diagnostics-actions">
+        <button type="button" id="diagnostics-show" data-i18n="diagnosticsShow"></button>
+        <button type="button" id="diagnostics-copy" data-i18n="diagnosticsCopy" disabled></button>
+        <button type="button" id="diagnostics-clear" data-i18n="diagnosticsClear"></button>
+      </div>
+      <label for="diagnostics-log" class="log-label" data-i18n="diagnosticsLogLabel" hidden></label>
+      <textarea id="diagnostics-log" rows="8" readonly spellcheck="false" hidden></textarea>
+      <p id="diagnostics-status" role="status" aria-live="polite"></p>
+    </details>
     <p id="status" role="status" aria-live="polite"></p>
   </main>
   <script src="popup.js"></script>
