@@ -4,114 +4,80 @@
 
 Last updated / 最終更新: 2026-10-15
 
+[English](#english) · [日本語](#日本語)
+
 ## English
 
-Selection Fence is designed to operate locally in the browser.
+### Information used in the browser
 
-### Data processed locally
+Selection Fence runs locally in your browser. To keep a text selection inside its starting block, it temporarily processes mouse actions, pointer positions, selection boundaries, and the page text and structure needed for that task.
 
-To provide its text-selection functionality, Selection Fence temporarily processes certain information on the device, including:
+To pause near sensitive fields, it checks field types, `autocomplete` attributes, visibility, and position. It does not read values entered into form fields. Automatic pausing is a convenience feature and does not guarantee protection of confidential information.
 
-- pointer and mouse interaction information such as cursor position and drag state;
-- browser Selection information such as selection start/end positions;
-- selection-related DOM information from the current page, including element type, visibility, position, and DOM node/offset information;
-- limited element attributes such as `type` and `autocomplete`, used only to detect certain sensitive input fields.
+This information is used only for selection control and troubleshooting. Page content, selected text, browsing history, cookies, and form values are not saved to persistent storage or sent to external servers.
 
-This processing occurs locally in the browser and is used only to provide Selection Fence's core functionality.
+### Saved preferences
 
-Selection Fence does **not** persistently store, transmit, sell, or share page contents, selected text, browsing history, form input values, passwords, credit-card numbers, one-time codes, cookies, personal information, analytics, or telemetry data.
+The extension saves two preferences in `chrome.storage.local`:
 
-### Local storage
+- The selection mode: Smart, Nearest, or Block Edge.
+- Whether diagnostic logging is enabled.
 
-Selection Fence stores only the selected behavior mode (`smart`, `nearest`, or `block`) and whether diagnostic logging is enabled using `chrome.storage.local`.
-
-These settings remember the user's preferences and are not transmitted to an external server.
+These settings stay in the browser. Diagnostic logs themselves are not saved to this storage.
 
 ### Optional diagnostic logs
 
-Diagnostic logging is off by default. When enabled, the extension keeps up to 200 events in each page's memory, including relative timings, click counts, fixed technical reason codes, standard element types, connection status and numeric selection offsets. Logs exclude page text, selected text, URLs, element ids/classes, form input values and exception messages. Logs are not written to persistent storage or automatically transmitted. They are erased when logging is disabled or the page is fully reloaded. The popup can display, clear or copy the current page's report to the clipboard at the user's request.
+Logging is off by default. If you enable it, the extension keeps up to 200 events in each page's memory. Events include relative timings, click counts, pause reasons, element types, connection status, and numeric selection offsets.
 
-### Page access
+Reports exclude page text, selected text, URLs, element IDs and classes, input values, and exception messages.
 
-Selection Fence must interact with the DOM and browser Selection APIs on the page being viewed in order to detect and constrain text-selection behavior.
+You can view, clear, or copy a report from the popup. Copying places the report on your clipboard. The extension does not automatically upload reports or write them to persistent storage. Logs are cleared when logging is turned off or the page is fully reloaded.
 
-The extension may temporarily inspect selection-related DOM structure, element visibility and position, and limited attributes such as `type` and `autocomplete`.
+### Network access and data use
 
-Selection Fence does not read or store the values entered into password, payment-card, or one-time-code fields.
+Selection Fence makes no external network requests. It uses no advertising, analytics services, tracking services, or remotely loaded code.
 
-### Sensitive-input pause
+The extension does not sell or share user data with third parties. Information is used only to provide and troubleshoot text-selection control, never for advertising or credit and lending decisions.
 
-Selection Fence may automatically pause its selection-limiting behavior near visible password, credit-card, and one-time-code fields.
+### Policy updates
 
-The extension determines this using field type, `autocomplete` attributes, visibility, and position. It does not read the values entered into those fields.
-
-This feature is provided as a convenience and privacy-oriented safeguard only. It is not a security guarantee and should not be relied upon as a substitute for normal security precautions.
-
-### Network communication and third parties
-
-Selection Fence does not make external network requests and does not use analytics, advertising, telemetry, or remote code.
-
-Selection Fence does not sell, transfer, or share user data with third parties.
-
-Selection Fence does not use user data for purposes unrelated to its single purpose, and does not use user data for creditworthiness or lending purposes.
-
-### Changes
-
-If this privacy policy changes in a way that affects data handling, the updated policy will be published with the project.
+Changes to this policy are published in this repository, with the date above updated accordingly.
 
 ---
 
 ## 日本語
 
-Selection Fence は、ブラウザ内でローカルに動作するよう設計されています。
+### ブラウザー内で扱う情報
 
-### ブラウザ内で一時的に処理する情報
+Selection Fence はブラウザー内で動作します。選択範囲を選び始めた段落や見出しの中に留めるため、マウス操作、カーソル位置、選択の始点・終点、必要なページの文字や構造を一時的に扱います。
 
-Selection Fence は、文字選択機能を提供するために、以下の情報を端末内で一時的に処理します。
+機密入力欄の周辺で動作を休止する際は、入力欄の種類、`autocomplete` 属性、表示状態、位置を確認します。入力された値は読み取りません。自動休止は補助機能であり、機密情報の保護を保証するものではありません。
 
-- マウスカーソルの位置やドラッグ状態などのユーザー操作情報
-- 選択開始位置・終了位置などのブラウザ Selection 情報
-- 表示中ページの要素種類、表示状態、位置、DOM ノードや文字位置（offset）など、文字選択に必要な DOM 情報
-- 機密入力欄を判定するための `type` や `autocomplete` などの限定的な要素属性
+これらの情報は、文字選択の制御と不具合の調査にだけ使用します。ページ本文、選択文字列、閲覧履歴、Cookie、フォーム入力値を永続保存したり、外部サーバーへ送信したりすることはありません。
 
-これらの処理はすべてブラウザ内で行われ、Selection Fence の主要機能を提供する目的にのみ使用されます。
+### 保存する設定
 
-Selection Fence は、ページ本文、選択文字列、閲覧履歴、フォーム入力値、パスワード、クレジットカード番号、ワンタイムコード、Cookie、個人情報、解析・テレメトリ情報を**永続保存・外部送信・販売・第三者共有しません**。
+`chrome.storage.local` に保存するのは、次の2つの設定です。
 
-### ローカル保存
+- 選択モード：自動・最寄り文字・ブロック端
+- 診断ログのオン・オフ
 
-Selection Fence が保存するのは、選択した動作モード（`smart` / `nearest` / `block`）と診断ログのオン・オフ設定のみです。
-
-これらは `chrome.storage.local` に保存され、利用者の設定を記憶するために使用されます。外部サーバーへ送信されません。
+設定はブラウザー内に保存されます。診断ログそのものは、この保存先には書き込みません。
 
 ### 任意の診断ログ
 
-診断ログは初期状態ではオフです。オンにした場合、相対的な経過時間、クリック回数、定型の動作理由、標準的な要素種類、接続状態、数値の選択位置など、最大200件のイベントを各ページのメモリ内に記録します。本文、選択文字、URL、要素の id/class、フォーム入力値、例外メッセージは含みません。ログは永続保存・自動送信されず、オフにするかページを完全に再読み込みすると消えます。利用者の操作により、設定画面から現在のページのログを表示・消去・クリップボードへコピーできます。
+診断ログは初期状態ではオフです。オンにすると、各ページのメモリ内に最大200件のイベントを保持します。記録するのは、相対的な経過時間、クリック回数、休止理由、要素の種類やページとの接続状態、選択位置を表す数値などです。
 
-### ページへのアクセス
+本文、選択文字列、URL、要素のID・class、入力値、例外メッセージはログに含みません。
 
-Selection Fence は、文字選択の挙動を検出・制御するために、表示中ページの DOM およびブラウザの Selection API を利用します。
+設定画面からログを表示・消去・コピーできます。コピーしたログはクリップボードに入ります。拡張機能がログを自動送信したり、永続保存したりすることはありません。記録をオフにするか、ページを完全に再読み込みするとログは消えます。
 
-文字選択に必要な DOM 構造、要素の表示状態や位置、`type` や `autocomplete` などの限定的な属性を一時的に参照する場合があります。
+### 外部通信と情報の利用
 
-パスワード、支払いカード、ワンタイムコード欄へ入力された**値そのものを読み取ったり保存したりしません**。
+Selection Fence は外部通信を行いません。広告、アクセス解析サービス、追跡サービス、外部から読み込むコードも使用していません。
 
-### 機密入力欄周辺での自動休止
+利用者のデータを販売したり、第三者へ共有したりすることはありません。扱う情報は文字選択の制御と不具合の調査にだけ使用し、広告や信用評価・融資の判断には利用しません。
 
-Selection Fence は、表示中のパスワード・カード・ワンタイムコード入力欄の周辺では、文字選択制限を自動休止する場合があります。
+### ポリシーの更新
 
-判定には、入力欄の種類、`autocomplete` 属性、表示状態、位置のみを使用し、入力された値そのものは読み取りません。
-
-この機能は利便性とプライバシーに配慮した補助機能であり、セキュリティを保証するものではありません。通常のセキュリティ対策の代替として依存しないでください。
-
-### 外部通信・第三者提供
-
-Selection Fence は外部ネットワーク通信を行わず、解析、広告、テレメトリ、リモートコードを使用しません。
-
-ユーザーデータを第三者へ販売・転送・共有しません。
-
-また、単一用途と無関係な目的でユーザーデータを使用せず、信用力判断や融資目的にも使用しません。
-
-### 変更
-
-データの取扱いに影響する変更がある場合は、更新したプライバシーポリシーをプロジェクトとともに公開します。
+このポリシーを変更した場合は、このリポジトリで公開し、上記の最終更新日を更新します。

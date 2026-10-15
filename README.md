@@ -2,139 +2,89 @@
 
 ![Selection Fence](assets/selection-fence.png)
 
-Selection Fence is a lightweight Chrome extension that prevents accidental text selections from jumping into unrelated parts of a web page.
+[日本語](#日本語) · [English](#english)
 
-Selection Fence は、文字をドラッグ選択したときに、選択範囲が意図せず別の段落・見出し・サイドバーなどへ広がるのを防ぐ Chrome 拡張機能です。
+## 日本語
 
-## Features / 主な機能
+文章をドラッグして選択するとき、選択範囲がほかの段落まで広がるのを防ぐ Chrome 拡張機能です。選択を始めた段落や見出しなどのブロック内に、範囲を留めます。
 
-- Keeps text selection within the block where the drag started.
-- Smart / Nearest / Block Edge selection modes.
-- Hold **Alt** while starting a drag to temporarily bypass the restriction and select across multiple blocks.
-- Automatically pauses near visible password, credit-card, and one-time-code fields.
-- No analytics.
-- No advertising.
-- No external network requests.
-- No page content, selected text, or form input values are persistently stored or transmitted.
+### 使い方
 
-- 選択を開始した文字ブロック内に選択範囲を留めます。
-- 「自動 / 最寄り文字 / ブロック端」の3モードを選択できます。
-- **Alt キーを押しながらドラッグを開始**すると、一時的に制限を解除して複数ブロックを選択できます。
-- 表示中のパスワード・カード・ワンタイムコード入力欄の周辺では自動休止します。
-- 解析なし。
-- 広告なし。
-- 外部通信なし。
-- ページ本文、選択文字列、フォーム入力値を永続保存・外部送信しません。
+拡張機能のアイコンを押してモードを選び、いつもどおり文字をドラッグしてください。
 
-## Selection modes / 選択モード
+| モード | 範囲の止め方 |
+| --- | --- |
+| 自動（推奨） | 少しはみ出したときは近くの文字、大きく離れたときはブロックの端で止めます。 |
+| 最寄り文字 | 開始ブロック内で、マウスに最も近い文字位置で止めます。 |
+| ブロック端 | 開始ブロックの先頭または末尾で止めます。 |
 
-- **Smart / 自動（推奨）**  
-  Small pointer movements use the nearest text position; larger movements stop at the block edge.  
-  少しのずれはマウスに近い文字位置で止め、大きく離れた場合はブロック端で止めます。
+複数の段落を選びたいときは、**Alt キーを押しながらドラッグを開始**してください。ダブルクリックなどの標準操作もそのまま使えます。
 
-- **Nearest / 最寄り文字**  
-  Always stops at the text position closest to the pointer within the starting block.  
-  常に開始ブロック内でマウスに最も近い文字位置に止めます。
+入力欄では動作を休止します。また、表示中のパスワード・カード・ワンタイムコード入力欄の周辺でも自動的に休止します。入力された値は読み取りません。
 
-- **Block Edge / ブロック端**  
-  Stops at the beginning or end of the text block where the selection started.  
-  選択を開始した文字ブロックの先頭または末尾で止めます。
+### 不具合を調べる
 
-The difference between modes is most noticeable when selecting multi-line text.
+診断ログは初期状態ではオフです。必要なときに、次の手順で記録できます。
 
-モードの違いは、複数行の文章を選択するときに分かりやすく現れます。
+1. 症状が出るページで拡張機能の設定画面を開き、**「不具合の診断」→「診断ログを記録する」**をオンにします。
+2. 「記録中です」と表示されたら設定画面を閉じ、不具合を再現します。
+3. 同じページで設定画面を開き、**「ログを表示」→「コピー」**を押します。
 
-## Alt bypass / Alt キーによる一時解除
+ログは最大200件をページのメモリ内に保持し、本文・選択文字・URL・入力内容は含みません。記録をオフにするか、ページを再読み込みすると消えるため、その前にコピーしてください。
 
-Hold **Alt** while starting a drag to temporarily disable Selection Fence and select across multiple blocks.
+記録のオン・オフ設定は次回も引き継がれます。読み込み直後の不具合を調べる場合は、記録をオンにしてからページを開いてください。
 
-**Alt キーを押しながらドラッグを開始**すると、一時的に Selection Fence の制限を解除して、複数のブロックをまたいで選択できます。
+### プライバシー
 
-## Sensitive input fields / 機密入力欄周辺での自動休止
+文字選択に必要なページ内容と操作情報は、ブラウザー内で処理します。保存する設定は、動作モードと診断ログのオン・オフだけです。外部通信、広告、アクセス解析はありません。
 
-For privacy and safety, Selection Fence automatically pauses its selection-limiting behavior near visible password, credit-card, and one-time-code fields.
+詳しい情報の扱いは[プライバシーポリシー](PRIVACY_POLICY.md#日本語)をご覧ください。
 
-It only checks field type, `autocomplete` attributes, visibility, and position. It does not read the values entered into those fields.
+## English
 
-プライバシーと安全性に配慮し、表示中のパスワード・カード・ワンタイムコード入力欄の周辺では、Selection Fence の選択制限を自動的に休止します。
+Selection Fence is a Chrome extension that keeps a text selection inside the paragraph, heading, or other block where the drag began. It helps prevent a selection from spreading into unrelated parts of a page.
 
-判定には入力欄の種類、`autocomplete` 属性、表示状態、位置のみを使用し、入力された値そのものは読み取りません。
+### How to use
 
-## Privacy / プライバシー
+Click the extension icon to choose a mode, then drag to select text as usual.
 
-Selection Fence processes pointer interaction and selection-related DOM information locally in the browser only as needed to provide its function.
+| Mode | Where the selection stops |
+| --- | --- |
+| Smart (recommended) | At the nearest text when the pointer is just outside the block; at the block edge when it moves farther away. |
+| Nearest | At the text position closest to the pointer within the starting block. |
+| Block Edge | At the beginning or end of the starting block. |
 
-The extension stores only the selected behavior mode (`smart`, `nearest`, or `block`) and the diagnostic logging preference in `chrome.storage.local`.
+To select across blocks, **hold Alt while starting the drag**. Standard operations such as double-click selection remain available.
 
-It does not transmit page contents, selected text, browsing history, or form input values to external servers.
+The extension pauses in input fields and near visible password, payment-card, and one-time-code fields. It does not read entered values.
 
-Selection Fence は、機能提供に必要な範囲で、マウス操作情報および文字選択に関係する DOM 情報をブラウザ内で一時的に処理します。
+### Troubleshooting
 
-保存するのは、選択した動作モード（`smart` / `nearest` / `block`）と診断ログのオン・オフ設定のみで、`chrome.storage.local` に保存されます。
+Diagnostic logging is off by default. To record an intermittent problem:
 
-ページ本文、選択文字列、閲覧履歴、フォーム入力値を外部サーバーへ送信しません。
+1. On the affected page, open the popup and turn on **Troubleshooting → Record diagnostic logs**.
+2. Wait for the recording confirmation, close the popup, and reproduce the problem.
+3. Open the popup on that same page and choose **Show logs → Copy**.
 
-See [PRIVACY_POLICY.md](./PRIVACY_POLICY.md) for details.
+Logs contain up to 200 events in page memory. They exclude page text, selected text, URLs, and input values. Copy the report before turning logging off or reloading the page, as either action clears the log.
 
-詳細は [PRIVACY_POLICY.md](./PRIVACY_POLICY.md) をご覧ください。
+The logging preference is remembered. To investigate a problem immediately after navigation, enable logging before opening the page.
 
-## Diagnostic logs / 診断ログ
+### Privacy
 
-Diagnostic logging is off by default. To investigate an intermittent failure:
+Page content and interaction information needed for selection control are processed locally in the browser. The only saved preferences are the selection mode and whether diagnostic logging is enabled. The extension has no external network requests, advertising, or analytics.
 
-1. Open the extension popup on the affected page, expand **Troubleshooting**, enable **Record diagnostic logs**, and wait for the recording confirmation.
-2. Close the popup and reproduce the issue.
-3. Open the popup on that same page, click **Show logs**, then **Copy**.
+See the [privacy policy](PRIVACY_POLICY.md#english) for details.
 
-The last 200 events include click counts, bypass/pause reasons, activation retries,
-DOM recovery results and selection corrections. Events contain only technical
-metadata, never page text, selected text, URLs, element ids/classes or input values.
-Logs stay in page memory, are erased when logging is disabled or the page is fully
-reloaded, and are not uploaded or written to persistent storage. The on/off setting
-persists across pages. Enable it before opening a page to investigate startup issues.
-Double-click and modifier-key bypass behavior is unchanged.
-The popup explains when recording is off or empty and keeps Copy disabled in those
-cases. If the page cannot confirm a logging preference change, reload it before
-reproducing the issue. `pointer.up`, `release.finalizing` and `release.completed`
-record whether the selection endpoints are inside the starting block before and
-after the final mouseup correction, without reading the selected text.
-If a mousemove reports `buttons=0` before mouseup arrives, the extension preserves
-the gesture for up to 250 ms instead of discarding its origin. A single timeout
-finishes the selection if mouseup is missing. Diagnostics distinguish this wait,
-its cancellation, and the timeout from a normal mouseup.
-Only a primary-button mouseup finishes the gesture. Diagnostics record ignored
-secondary-button releases as `release.ignored` and cancelled native drags as
-`native_drag.cancelled`. Artificial blur/pagehide notifications do not release
-the lock; native lifecycle events still clean it up.
+## 開発 / Development
 
-診断ログは初期状態ではオフです。症状が出るページで拡張の設定画面の**「不具合の診断」**を開き、
-**「診断ログを記録する」**をオンにし、**「記録中です」**と表示されたことを確認します。設定画面を閉じて操作し、症状が出たら、
-ページを再読み込みせずに設定画面の**「ログを表示」→「コピー」**で採取してください。
+このフォルダを Chrome に「パッケージ化されていない拡張機能」として読み込めます。ビルドは不要です。
 
-クリック回数、制限の解除・休止理由、開始の再試行、DOM の復旧結果、選択の補正など、
-直近200件をページのメモリ内に記録します。本文・選択文字・URL・要素の id/class・
-入力値は含みません。ログはオフにするかページを完全に再読み込みすると消え、
-永続保存・自動送信されません。オン・オフ設定は別のページにも引き継がれるため、
-読み込み直後の症状を調べる際は、先にオンにしてからページを開いてください。
-ダブルクリックや修飾キーによる制限解除の仕様は変えていません。
-記録がオフ・空の場合は理由を表示し、コピーはできません。ページへの設定反映を確認できない場合は、
-先にそのページを再読み込みしてください。`pointer.up`、`release.finalizing`、`release.completed` には、
-クリックを離したときの最終補正の前後で選択の始点・終点が開始ブロック内にあるかを記録します。
-この確認で選択文字列は読み取りません。
-`mouseup` より先に `buttons=0` のマウス移動が届いた場合も、開始位置を捨てずに最大250ms待ちます。
-通知が欠けた場合は一度だけ設定したタイムアウトで最終補正・解除を行います。
-ログには待機・待機のキャンセル・タイムアウトを通常の `mouseup` と区別して記録します。
-ドラッグを終了するのは左ボタンの `mouseup` です。その他のボタンを離した場合は `release.ignored`、
-ページ側でキャンセルされたネイティブドラッグは `native_drag.cancelled` と記録します。
-ページが人工的に発火した `blur`・`pagehide` では解除せず、ブラウザが通知した実際の状態変化で後片付けします。
+Load this folder as an unpacked extension in Chrome. No build is required.
 
-## Development / 開発
+テストには Node.js 22 以降を使用します。専用の Chromium で不具合の再発を確認し、普段のブラウザープロファイルは使用しません。テストと開発用ライブラリは、配布用ZIPには含めていません。
 
-The extension can be loaded directly from this folder; no build is required.
-Browser regression tests require Node.js 22 or later:
-
-拡張機能はこのフォルダから直接読み込めます。ビルドは不要です。
-ブラウザでの回帰テストには Node.js 22 以降を使用します。
+Tests require Node.js 22 or later and use a separate Chromium profile. Tests and development dependencies are excluded from the store package.
 
 ```sh
 npm ci
@@ -142,50 +92,8 @@ npm run test:install
 npm test
 ```
 
-Tests load the actual extension in a separate headless Chromium profile and drag
-text on a local page before loading completes. They cover startup retries,
-invalid selection anchors, DOM replacement, quick drags, cleanup, and Alt bypass.
-They also reproduce selection changes during mouseup and verify that finalization
-cannot affect a subsequent drag. Separate Node tests delay the initial settings
-read to check that newer preferences and recording acknowledgments take priority.
-Input-order tests send trusted Chromium mouse events with `buttons=0` before
-mouseup, including activation/pending states, missing mouseup, resumed movement,
-new presses and Escape cancellation.
-Cancellation tests distinguish element focus changes from actual window blur,
-artificial lifecycle events from page navigation, and cancelled native drags from
-accepted ones. They also cover secondary-button releases, obsolete cleanup tasks,
-and invisible sensitive-field ancestors when the visibility API is unavailable.
-Some tests control animation frames and caret lookups in the extension's isolated
-world to reproduce transient failures deterministically; the DOM, Selection API,
-and mouse interactions still run in Chromium. No personal browser profile is used.
+## ライセンス / License
 
-テストは専用の Chromium に実際の拡張機能を読み込み、ローカルページの読み込み完了前に
-文字をドラッグします。開始時の再試行、開始位置のずれ、DOM の置換、高速ドラッグ、
-後片付け、Alt による解除を確認します。一部のテストでは一時的な失敗を確実に再現するため、
-拡張機能の実行環境内で描画タイミングと文字位置の取得を制御します。
-DOM・文字選択・マウス操作は Chromium で動作し、普段のブラウザプロファイルは使用しません。
-要素のフォーカス解除とページ全体のフォーカス喪失、人工的な通知と実際のページ遷移、
-キャンセルされたドラッグと成立したドラッグも区別してテストします。
-左ボタン以外の解放、以前の操作の解除予約、可視性APIが使えない場合の非表示入力欄も確認します。
+MIT ライセンスです。利用条件と免責事項は [LICENSE](LICENSE) をご覧ください。機密入力欄周辺での自動休止は補助機能であり、機密情報の保護を保証するものではありません。
 
-## Disclaimer / 免責事項
-
-This software is provided **"AS IS"**, without warranty of any kind, express or implied. Use of this extension is at your own risk.
-
-To the maximum extent permitted by applicable law, the author and copyright holder shall not be liable for any claim, damages, loss of data, loss of profits, service interruption, or other liability arising from or related to the use of, inability to use, or malfunction of this software.
-
-Selection Fence is not a security product. Its sensitive-field auto-pause feature is a convenience feature and does not guarantee protection of confidential information.
-
-このソフトウェアは **「現状のまま（AS IS）」** 提供され、明示・黙示を問わず、いかなる保証も行いません。利用は利用者自身の責任で行ってください。
-
-適用法令で認められる最大限の範囲において、本ソフトウェアの使用、使用不能、不具合等に関連して生じた損害、データ損失、利益損失、サービス停止、その他の請求・責任について、作者および著作権者は責任を負いません。
-
-Selection Fence はセキュリティ製品ではありません。機密入力欄周辺での自動休止機能は補助的な利便機能であり、機密情報の保護を保証するものではありません。
-
-## License / ライセンス
-
-MIT License.
-
-See [LICENSE](./LICENSE).
-
-MIT ライセンスで公開しています。詳細は [LICENSE](./LICENSE) をご覧ください。
+Released under the MIT License. See [LICENSE](LICENSE) for terms and the warranty disclaimer. Automatic pausing near sensitive fields is a convenience feature and does not guarantee protection of confidential information.
